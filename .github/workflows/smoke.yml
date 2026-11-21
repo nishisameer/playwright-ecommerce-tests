@@ -1,0 +1,55 @@
+# SMOKE SUITE
+# Runs on every pull request and every push to main.
+# Goal: a fast (~few minutes) "is the core of the site working?" check.
+# If it fails, the PR should not be merged (make this a required check
+# under Settings > Branches > Branch protection rules).
+name: Smoke Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_URL: ${{ vars.BASE_URL || 'https://www.saucedemo.com' }}
+      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://automationexercise.com' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke tests
+        run: npx playwright test --grep @smoke --project=chromium --project=api --reporter=html,github,list
+
+      - name: Upload HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: playwright-report/
+          retention-days: 14

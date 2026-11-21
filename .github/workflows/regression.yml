@@ -1,0 +1,93 @@
+# REGRESSION SUITE
+# Runs every night and on demand (Actions tab > Regression Tests > Run workflow).
+# Goal: check EVERYTHING still works, across browsers.
+# Tests are split into shards that run in parallel on separate machines,
+# then the shard reports are merged into one HTML report.
+name: Regression Tests
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # 08:00 UTC every day (1 AM Mountain)
+  workflow_dispatch:
+    inputs:
+      browser:
+        description: 'Browser project to run'
+        type: choice
+        options: [chromium, firefox, webkit]
+        default: chromium
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false # let every shard finish so we see ALL failures
+      matrix:
+        shardIndex: [1, 2, 3]
+        shardTotal: [3]
+    env:
+      BASE_URL: ${{ vars.BASE_URL || 'https://www.saucedemo.com' }}
+      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://automationexercise.com' }}
+      BROWSER: ${{ inputs.browser || 'chromium' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install browser
+        run: npx playwright install --with-deps ${{ env.BROWSER }}
+
+      - name: Run regression shard ${{ matrix.shardIndex }} of ${{ matrix.shardTotal }}
+        run: >
+          npx playwright test --grep @regression
+          --project=${{ env.BROWSER }} --project=api
+          --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+
+      - name: Upload blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.shardIndex }}
+          path: blob-report/
+          retention-days: 1
+
+  merge-reports:
+    # Combine the shard results into a single HTML report, even if tests failed.
+    if: ${{ !cancelled() }}
+    needs: regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download blob reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+
+      - name: Merge into HTML report
+        run: npx playwright merge-reports --reporter html ./all-blob-reports
+
+      - name: Upload merged HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-report
+          path: playwright-report/
+          retention-days: 14

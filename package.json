@@ -1,0 +1,25 @@
+{
+  "name": "playwright-ecommerce-tests",
+  "version": "1.0.0",
+  "description": "Learning project: how an e-commerce smoke + regression suite is built and managed with Playwright and TypeScript",
+  "private": true,
+  "scripts": {
+    "test": "playwright test --project=chromium --project=api",
+    "test:smoke": "playwright test --grep @smoke --project=chromium --project=api",
+    "test:regression": "playwright test --grep @regression --project=chromium --project=api",
+    "test:regression:all-browsers": "playwright test --grep @regression",
+    "test:ui": "playwright test --project=chromium",
+    "test:api": "playwright test --project=api",
+    "test:headed": "playwright test --project=chromium --headed",
+    "test:debug": "playwright test --project=chromium --debug",
+    "list:smoke": "playwright test --grep @smoke --project=chromium --project=api --list",
+    "list:regression": "playwright test --grep @regression --project=chromium --project=api --list",
+    "report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
