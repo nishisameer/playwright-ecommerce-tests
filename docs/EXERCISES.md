@@ -4,41 +4,47 @@ Each exercise is something a real team would add to this suite. Try them in orde
 
 ---
 
-### 1. Run and explore (warm-up)
-- Run `npm run list:smoke` and `npm run list:regression`. How many tests are in each, and why is smoke smaller?
+### 1. Explore the app first (like a real SDET)
+- Click through https://practicesoftwaretesting.com: search, filter, add to cart, check out (log in with `customer@practicesoftwaretesting.com` / `welcome01`).
+- Open the Swagger docs at https://api.practicesoftwaretesting.com/api/documentation and try `GET /products` with **Try it out**.
+- Open the browser DevTools **Network** tab while using the site. Which API calls does the website make when you search? This is how you discover what to test at the API layer.
+
+### 2. Run and read the suites
+- Run `npm run list:smoke` and `npm run list:regression`. Why is smoke smaller?
 - Run `npm run test:headed` and watch the browser.
-- Break a test on purpose (change `'Products'` to `'Product'` in `inventory.spec.ts`), run it, and open the report and trace. Then undo the change.
+- Break a test on purpose (change `'My account'` to `'My acount'` in `login.spec.ts`), run it, and open the report and trace. Then undo the change.
 
-### 2. Add a regression test
-Add a test to `inventory.spec.ts`: **sort by name A to Z** (`'az'`). Tag it `@regression` only. Run it with `--repeat-each=5`.
+### 3. API test: sort by price descending
+In `products.api.spec.ts`, add a test for `sort: 'price,desc'`. Tag it `@regression` only.
 
-### 3. Add a locator to a page object
-The checkout overview page shows each item's quantity (`data-test="item-quantity"`). Add a `itemQuantities` locator to `CheckoutPage` and write a test that checks both items show quantity `1`.
+### 4. API test: products by brand
+`GET /brands` returns brands with ids. Write a test that takes the first brand, calls `GET /products?by_brand=<id>`, and checks every product returned has that brand. Add any new method to `ToolshopApi`.
 
-### 4. Data-driven test
-In `cart.spec.ts`, write a loop that generates one test per product in `src/data/products.ts`: add that product, open the cart, and check the name and price.
+### 5. UI test: category filter
+On the home page, the left sidebar filters by category. Add a locator to `HomePage`, filter by one category, and check the results. Then make it **hybrid**: compare the UI results with `GET /products?by_category=<id>`.
 
-### 5. Is it smoke or regression?
-For each of these, decide `@smoke` or `@regression` only, and explain why:
-- Product details page shows the right price
-- User can log out
-- Checkout shows an error for a missing postal code
-- Product API returns products
+### 6. Make a flaky test stable
+Run `npx playwright test tests/ui/cart.spec.ts --repeat-each=5`. Read the `addProducts()` helper and explain in your own words why it waits for the cart counter before navigating. What would happen without that wait?
 
-### 6. Manage a known bug
-Log in as `problem_user` and try sorting by price. Write a test that documents the bug using `test.fail()`, an `issue` annotation and the `@known-bug` tag.
+### 7. Finish the hybrid order test
+In `tests/hybrid/product-data.hybrid.spec.ts`, replace the `test.fixme` placeholder:
+1. Place an order through the UI (reuse the steps from `checkout.spec.ts`).
+2. Read the invoice number from the confirmation message.
+3. Log in through the API and check `GET /invoices` contains that invoice number.
 
-### 7. API test
-Add a test for `GET /api/brandsList` that checks every brand has an `id` (number) and a `brand` (string). Add the request method to `ProductsApi` if needed.
+### 8. Is it smoke or regression?
+Decide `@smoke` or `@regression` only for each, and explain why:
+- Product page shows the same price as the API
+- Customer can sign out
+- `GET /invoices` without a token returns 401
+- Search returns matching products
 
-### 8. Make CI cross-browser
-Trigger the **Regression Tests** workflow manually from the Actions tab and choose `firefox`. Download the merged report artifact. Did anything behave differently?
-
-### 9. Branch protection (quality gate)
-In your GitHub repo settings, add a branch protection rule for `main` that requires the **smoke** check to pass. Open a PR with a deliberately failing smoke test and confirm it can't be merged.
+### 9. Cross-browser run and branch protection
+- Trigger **Regression Tests** manually from the Actions tab and choose `firefox`. Download the merged report artifact.
+- Add a branch protection rule for `main` that requires the **smoke** check. Open a PR with a deliberately failing smoke test and confirm it can't be merged.
 
 ### 10. Interview practice
 Explain out loud, in under 2 minutes:
-- How this suite decides what's smoke vs. regression
+- Why some checks are API tests, some are UI tests, and some are hybrid
 - What happens from "developer opens a PR" to "tests pass or fail"
-- How you'd triage a regression run where 12 tests failed overnight
+- How you'd triage a regression run where 8 tests failed overnight against a live site

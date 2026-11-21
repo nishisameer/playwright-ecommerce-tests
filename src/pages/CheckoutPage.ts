@@ -1,65 +1,71 @@
 import { type Locator, type Page } from '@playwright/test';
 import { BasePage } from './BasePage';
-import { type Customer } from '../data/customers';
-import { parsePrice } from '../utils/price';
+import { testAddress } from '../data/addresses';
+
+export type PaymentMethod = 'cash-on-delivery' | 'bank-transfer' | 'credit-card' | 'buy-now-pay-later' | 'gift-card';
 
 /**
- * Covers all three checkout screens:
- * step one (your information) -> step two (overview) -> complete.
+ * Steps 2-4 of checkout:
+ *   2. Sign in (or "you are already logged in")
+ *   3. Billing address
+ *   4. Payment
  */
 export class CheckoutPage extends BasePage {
-  // Step one: customer information
-  readonly firstNameInput: Locator;
-  readonly lastNameInput: Locator;
-  readonly postalCodeInput: Locator;
-  readonly continueButton: Locator;
-  readonly cancelButton: Locator;
-  readonly errorMessage: Locator;
-
-  // Step two: overview
-  readonly subtotalLabel: Locator;
-  readonly taxLabel: Locator;
-  readonly totalLabel: Locator;
+  readonly proceedToAddress: Locator;
+  readonly proceedToPayment: Locator;
+  readonly street: Locator;
+  readonly city: Locator;
+  readonly state: Locator;
+  readonly country: Locator;
+  readonly postalCode: Locator;
+  readonly paymentMethod: Locator;
   readonly finishButton: Locator;
-
-  // Complete
-  readonly completeHeader: Locator;
-  readonly backHomeButton: Locator;
+  readonly paymentSuccess: Locator;
+  readonly orderConfirmation: Locator;
 
   constructor(page: Page) {
     super(page);
-    this.firstNameInput = page.getByTestId('firstName');
-    this.lastNameInput = page.getByTestId('lastName');
-    this.postalCodeInput = page.getByTestId('postalCode');
-    this.continueButton = page.getByTestId('continue');
-    this.cancelButton = page.getByTestId('cancel');
-    this.errorMessage = page.getByTestId('error');
-
-    this.subtotalLabel = page.getByTestId('subtotal-label');
-    this.taxLabel = page.getByTestId('tax-label');
-    this.totalLabel = page.getByTestId('total-label');
+    this.proceedToAddress = page.getByTestId('proceed-2');
+    this.proceedToPayment = page.getByTestId('proceed-3');
+    this.street = page.getByTestId('street');
+    this.city = page.getByTestId('city');
+    this.state = page.getByTestId('state');
+    this.country = page.getByTestId('country');
+    this.postalCode = page.getByTestId('postal_code');
+    this.paymentMethod = page.getByTestId('payment-method');
     this.finishButton = page.getByTestId('finish');
-
-    this.completeHeader = page.getByTestId('complete-header');
-    this.backHomeButton = page.getByTestId('back-to-products');
+    this.paymentSuccess = page.getByTestId('payment-success-message');
+    this.orderConfirmation = page.locator('#order-confirmation');
   }
 
-  async fillCustomerInfo(customer: Partial<Customer>): Promise<void> {
-    if (customer.firstName !== undefined) await this.firstNameInput.fill(customer.firstName);
-    if (customer.lastName !== undefined) await this.lastNameInput.fill(customer.lastName);
-    if (customer.postalCode !== undefined) await this.postalCodeInput.fill(customer.postalCode);
-    await this.continueButton.click();
+  /**
+   * For a logged-in customer the address is usually pre-filled from their profile.
+   * We only fill fields that are empty, so the test works either way.
+   */
+  async completeBillingAddress(): Promise<void> {
+    const fields: [Locator, string][] = [
+      [this.street, testAddress.street],
+      [this.city, testAddress.city],
+      [this.state, testAddress.state],
+      [this.country, testAddress.country],
+      [this.postalCode, testAddress.postalCode],
+    ];
+    await this.street.waitFor();
+    for (const [field, value] of fields) {
+      if ((await field.count()) === 0 || (await field.inputValue()) !== '') continue;
+
+      const tag = await field.evaluate((el) => el.tagName);
+      if (tag === 'SELECT') {
+        await field.selectOption({ index: 1 }); // a dropdown: pick the first real option
+      } else {
+        await field.fill(value);
+      }
+    }
+    await this.proceedToPayment.click();
   }
 
-  async getTotals(): Promise<{ subtotal: number; tax: number; total: number }> {
-    return {
-      subtotal: parsePrice(await this.subtotalLabel.innerText()),
-      tax: parsePrice(await this.taxLabel.innerText()),
-      total: parsePrice(await this.totalLabel.innerText()),
-    };
-  }
-
-  async finish(): Promise<void> {
+  async pay(method: PaymentMethod): Promise<void> {
+    await this.paymentMethod.selectOption(method);
     await this.finishButton.click();
   }
 }

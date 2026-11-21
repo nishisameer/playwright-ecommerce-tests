@@ -21,8 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      BASE_URL: ${{ vars.BASE_URL || 'https://www.saucedemo.com' }}
-      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://automationexercise.com' }}
+      BASE_URL: ${{ vars.BASE_URL || 'https://practicesoftwaretesting.com' }}
+      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.practicesoftwaretesting.com' }}
 
     steps:
       - name: Checkout code

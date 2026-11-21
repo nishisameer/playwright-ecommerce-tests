@@ -1,12 +1,16 @@
 import { defineConfig, devices } from '@playwright/test';
+import { env } from './src/config/env';
 
 /**
  * Where the logged-in browser state is saved by tests/setup/auth.setup.ts.
  * UI tests reuse it, so they don't log in through the UI every time.
  */
-export const STORAGE_STATE = 'playwright/.auth/standard-user.json';
+export const STORAGE_STATE = 'playwright/.auth/customer.json';
 
 const isCI = !!process.env.CI;
+
+/** UI tests and hybrid (API + UI) tests both need a browser. */
+const BROWSER_TESTS = /(ui|hybrid)\/.*\.spec\.ts/;
 
 export default defineConfig({
   testDir: './tests',
@@ -21,20 +25,18 @@ export default defineConfig({
   // is reported as "flaky" and should be fixed (see docs/TEST-STRATEGY.md).
   retries: isCI ? 2 : 0,
 
-  workers: isCI ? 2 : undefined,
+  // A public practice site: be polite and don't hammer it with many workers.
+  workers: isCI ? 2 : 3,
 
-  timeout: 30_000,
-  expect: { timeout: 5_000 },
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
 
   reporter: isCI
     ? [['blob'], ['github'], ['list']] // blob reports from shards are merged into one HTML report
     : [['html', { open: 'on-failure' }], ['list']],
 
   use: {
-    baseURL: process.env.BASE_URL ?? 'https://www.saucedemo.com',
-
-    // SauceDemo uses data-test="..." attributes, so getByTestId() looks for those.
-    testIdAttribute: 'data-test',
+    baseURL: env.baseUrl,
 
     // Evidence for analyzing failures.
     trace: 'on-first-retry',
@@ -43,37 +45,37 @@ export default defineConfig({
   },
 
   projects: [
-    // 1. Logs in once and saves the session for the UI projects.
+    // 1. Logs in once and saves the session for the browser projects.
     {
       name: 'setup',
-      testMatch: /.*\.setup\.ts/,
+      testMatch: /setup\/.*\.setup\.ts/,
     },
 
-    // 2. UI tests: Chromium runs on every PR; Firefox/WebKit run in the nightly regression.
+    // 2. UI + hybrid tests: Chromium on every PR; Firefox/WebKit in the nightly regression.
     {
       name: 'chromium',
-      testDir: './tests/ui',
+      testMatch: BROWSER_TESTS,
       use: { ...devices['Desktop Chrome'], storageState: STORAGE_STATE },
       dependencies: ['setup'],
     },
     {
       name: 'firefox',
-      testDir: './tests/ui',
+      testMatch: BROWSER_TESTS,
       use: { ...devices['Desktop Firefox'], storageState: STORAGE_STATE },
       dependencies: ['setup'],
     },
     {
       name: 'webkit',
-      testDir: './tests/ui',
+      testMatch: BROWSER_TESTS,
       use: { ...devices['Desktop Safari'], storageState: STORAGE_STATE },
       dependencies: ['setup'],
     },
 
-    // 3. API tests: no browser needed, different base URL.
+    // 3. API tests: no browser, requests go straight to the API base URL.
     {
       name: 'api',
-      testDir: './tests/api',
-      use: { baseURL: process.env.API_BASE_URL ?? 'https://automationexercise.com' },
+      testMatch: /api\/.*\.spec\.ts/,
+      use: { baseURL: env.apiBaseUrl },
     },
   ],
 });

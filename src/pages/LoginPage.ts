@@ -1,28 +1,31 @@
 import { type Locator, type Page } from '@playwright/test';
-import { PASSWORD } from '../data/users';
+import { BasePage } from './BasePage';
 
-export class LoginPage {
-  readonly page: Page;
-  readonly usernameInput: Locator;
+export class LoginPage extends BasePage {
+  readonly emailInput: Locator;
   readonly passwordInput: Locator;
-  readonly loginButton: Locator;
-  readonly errorMessage: Locator;
+  readonly submitButton: Locator;
+  readonly loginError: Locator;
+  readonly emailError: Locator;
+  readonly passwordError: Locator;
 
   constructor(page: Page) {
-    this.page = page;
-    this.usernameInput = page.getByTestId('username');
+    super(page);
+    this.emailInput = page.getByTestId('email');
     this.passwordInput = page.getByTestId('password');
-    this.loginButton = page.getByTestId('login-button');
-    this.errorMessage = page.getByTestId('error');
+    this.submitButton = page.getByTestId('login-submit');
+    this.loginError = page.getByTestId('login-error');
+    this.emailError = page.getByTestId('email-error');
+    this.passwordError = page.getByTestId('password-error');
   }
 
   async goto(): Promise<void> {
-    await this.page.goto('/');
+    await this.page.goto('/auth/login');
   }
 
-  async login(username: string, password: string = PASSWORD): Promise<void> {
-    await this.usernameInput.fill(username);
+  async login(email: string, password: string): Promise<void> {
+    await this.emailInput.fill(email);
     await this.passwordInput.fill(password);
-    await this.loginButton.click();
+    await this.submitButton.click();
   }
 }

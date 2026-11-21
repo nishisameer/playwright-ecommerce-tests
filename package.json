@@ -1,14 +1,15 @@
 {
   "name": "playwright-ecommerce-tests",
   "version": "1.0.0",
-  "description": "Learning project: how an e-commerce smoke + regression suite is built and managed with Playwright and TypeScript",
+  "description": "Learning project: an e-commerce smoke + regression suite (UI, API and hybrid tests) for the Toolshop practice app, built with Playwright and TypeScript",
   "private": true,
   "scripts": {
     "test": "playwright test --project=chromium --project=api",
     "test:smoke": "playwright test --grep @smoke --project=chromium --project=api",
     "test:regression": "playwright test --grep @regression --project=chromium --project=api",
     "test:regression:all-browsers": "playwright test --grep @regression",
-    "test:ui": "playwright test --project=chromium",
+    "test:ui": "playwright test --project=chromium tests/ui",
+    "test:hybrid": "playwright test --project=chromium tests/hybrid",
     "test:api": "playwright test --project=api",
     "test:headed": "playwright test --project=chromium --headed",
     "test:debug": "playwright test --project=chromium --debug",

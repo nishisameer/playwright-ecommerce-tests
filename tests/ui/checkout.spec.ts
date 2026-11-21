@@ -1,59 +1,51 @@
 import { test, expect } from '../../src/fixtures/test';
-import { products, TAX_RATE } from '../../src/data/products';
-import { validCustomer } from '../../src/data/customers';
-import { roundMoney } from '../../src/utils/price';
+import { productNames } from '../../src/data/products';
+import { users } from '../../src/data/users';
 
-test.describe('Checkout', { tag: '@checkout' }, () => {
-  // Setup: every checkout test starts with the same items in the cart
-  // and is already on the "Your Information" step.
-  test.beforeEach(async ({ inventoryPage, cartPage }) => {
-    await inventoryPage.goto();
-    await inventoryPage.addToCart(products.backpack.slug, products.bikeLight.slug);
-    await inventoryPage.openCart();
-    await cartPage.checkout();
+/**
+ * The most important business flow: can a logged-in customer buy something?
+ * One test with steps (not several dependent tests), so it can run alone,
+ * in parallel and on retry. The steps still show up in the report.
+ *
+ * The customer is already logged in thanks to the setup project.
+ */
+test('logged-in customer can complete a purchase', { tag: ['@smoke', '@regression', '@e2e', '@checkout'] }, async ({
+  api,
+  productPage,
+  cartPage,
+  checkoutPage,
+  page,
+}) => {
+  const product = await api.findProductByName(productNames.combinationPliers);
+
+  await test.step('add a product to the cart', async () => {
+    await productPage.goto(product.id);
+    await productPage.addToCart();
+    await expect(productPage.cartQuantity).toHaveText('1');
   });
 
-  test('order totals are calculated correctly', { tag: '@regression' }, async ({ checkoutPage }) => {
-    await checkoutPage.fillCustomerInfo(validCustomer);
-
-    const expectedSubtotal = roundMoney(products.backpack.price + products.bikeLight.price);
-    const expectedTax = roundMoney(expectedSubtotal * TAX_RATE);
-
-    const totals = await checkoutPage.getTotals();
-    expect(totals.subtotal).toBe(expectedSubtotal);
-    expect(totals.tax).toBe(expectedTax);
-    expect(totals.total).toBe(roundMoney(expectedSubtotal + expectedTax));
+  await test.step('review the cart', async () => {
+    await productPage.openCart();
+    await expect(cartPage.productTitles).toHaveText([productNames.combinationPliers]);
+    await cartPage.proceed();
   });
 
-  // Data-driven validation tests: one test per required field.
-  const requiredFields = [
-    { field: 'first name', data: { ...validCustomer, firstName: '' }, error: 'First Name is required' },
-    { field: 'last name', data: { ...validCustomer, lastName: '' }, error: 'Last Name is required' },
-    { field: 'postal code', data: { ...validCustomer, postalCode: '' }, error: 'Postal Code is required' },
-  ];
-
-  for (const row of requiredFields) {
-    test(`validation: ${row.field} is required`, { tag: '@regression' }, async ({ checkoutPage, page }) => {
-      await checkoutPage.fillCustomerInfo(row.data);
-
-      await expect(checkoutPage.errorMessage).toContainText(row.error);
-      await expect(page).toHaveURL(/checkout-step-one\.html/);
-    });
-  }
-
-  test('cancel returns to the cart with items kept', { tag: '@regression' }, async ({ checkoutPage, cartPage, page }) => {
-    await checkoutPage.cancelButton.click();
-
-    await expect(page).toHaveURL(/cart\.html/);
-    await expect(cartPage.items).toHaveCount(2);
+  await test.step('confirm the signed-in customer', async () => {
+    await expect(page.getByText(`Hello ${users.customer.fullName}`)).toBeVisible();
+    await checkoutPage.proceedToAddress.click();
   });
 
-  test('cart is empty after a completed order', { tag: '@regression' }, async ({ checkoutPage, inventoryPage }) => {
-    await checkoutPage.fillCustomerInfo(validCustomer);
-    await checkoutPage.finish();
-    await checkoutPage.backHomeButton.click();
+  await test.step('billing address', async () => {
+    await checkoutPage.completeBillingAddress();
+  });
 
-    await expect(inventoryPage.title).toHaveText('Products');
-    await expect(inventoryPage.cartBadge).toBeHidden();
+  await test.step('pay with cash on delivery', async () => {
+    await checkoutPage.pay('cash-on-delivery');
+    await expect(checkoutPage.paymentSuccess).toContainText('Payment was successful');
+  });
+
+  await test.step('order is confirmed with an invoice number', async () => {
+    await checkoutPage.finishButton.click();
+    await expect(checkoutPage.orderConfirmation).toContainText(/INV-\d+/);
   });
 });

@@ -12,19 +12,34 @@ We keep **one codebase** and use **tags** to build different suites from it.
 |---|---|---|
 | `@smoke` | Critical paths. If one fails, the site is basically broken. | Keep it small and fast: login, product list, add to cart, purchase, key APIs |
 | `@regression` | Everything we expect to keep working | **Every** test gets this tag, including smoke tests |
-| `@login`, `@inventory`, `@cart`, `@checkout`, `@api`, `@e2e` | Feature area | Lets you run just one area: `--grep @cart` |
-| `@known-bug` | Test documents a bug that isn't fixed yet | Uses `test.fail()` plus an `issue` annotation |
+| `@login`, `@catalog`, `@cart`, `@checkout`, `@e2e` | Feature area | Lets you run just one area: `--grep @cart` |
+| `@api`, `@hybrid` | Test type | API-only tests, or tests that combine API and UI |
+| `@security` | Access-control checks | Protected pages/endpoints refuse access without login |
+| `@known-bug` | Test documents a bug that isn't fixed yet | Uses `test.fail()` plus an `issue` annotation (see section 6) |
 
 ### What belongs in smoke?
 
 Ask: **"If this breaks, would we stop a release or wake someone up?"**
 
-- ✅ Customer can log in
-- ✅ Products load
-- ✅ Customer can add to cart and buy
-- ✅ Product API responds
+- ✅ Customer can log in (UI) and get a token (API)
+- ✅ Products load and search works
+- ✅ Customer can add to cart and complete a purchase
+- ✅ Product list, search and cart APIs respond
 - ❌ Sorting Z to A (important, but not "site is down")
 - ❌ Each validation message (covered by regression)
+- ❌ Hybrid data checks (valuable, but slower; they run nightly)
+
+### Which layer should a test live in?
+
+Push each check to the **lowest layer that can catch the bug**:
+
+| Check | Best layer | Why |
+|---|---|---|
+| Search returns the right products | API | Fast, no browser needed |
+| Sorting order is correct | API (plus one UI check) | Logic lives in the backend |
+| Unauthorized requests are refused | API | Direct and reliable |
+| Cart total shown to the customer is right | Hybrid | Expected price from API, displayed total from UI |
+| Customer can complete checkout | UI | Only the browser shows the real customer journey |
 
 Smoke should stay under about 5 minutes. If it grows, move tests to regression-only.
 
@@ -105,14 +120,16 @@ A flaky test passes and fails without any code change. It's dangerous because pe
 When a real bug is confirmed but won't be fixed right away:
 
 ```ts
-test('problem user sees a unique image for each product', {
-  tag: '@regression',
-  annotation: { type: 'issue', description: 'BUG-101: all product images are identical for problem_user' },
+test('cart total includes all items', {
+  tag: ['@regression', '@known-bug'],
+  annotation: { type: 'issue', description: 'BUG-101: cart total ignores the second item' },
 }, async ({ ... }) => {
   test.fail(); // we EXPECT this to fail until BUG-101 is fixed
   ...
 });
 ```
+
+Related: `test.fixme()` marks a test as **not runnable yet** (planned work, or quarantined because it's flaky). It's skipped, but it still shows up in the report so nobody forgets it. See the placeholder in `tests/hybrid/product-data.hybrid.spec.ts`.
 
 - The suite stays green, and the bug stays visible in the report with its ticket number.
 - When the bug is fixed, the test unexpectedly **passes**, so Playwright marks it red. That reminds us to remove `test.fail()`.
@@ -122,9 +139,12 @@ test('problem user sees a unique image for each product', {
 
 ## 7. Test data
 
-- Expected data (products, prices) lives in `src/data/`. If a price changes, it's fixed in one place.
-- Customer data is synthetic and obviously fake (`Test Customer`, postal code `00000`, `example.com` emails).
-- `uniqueCustomer()` in `src/data/customers.ts` creates unique data so parallel tests never collide. On a real site with a database, tests would create their own data through the API and clean it up afterwards.
+- **Expected data comes from the API at test time** (product ids and prices), not hard-coded values. `src/data/` only keeps stable things like product names.
+- **Accounts:** the site's published demo accounts (`src/data/users.ts`). Most browser tests reuse the login session of `customer`; login and API tests use `customer2`, to spread activity.
+- **Negative login tests use an email that doesn't exist.** Repeated wrong passwords on a real account could lock it and break every other test.
+- **Each test creates its own cart**, so parallel tests never collide.
+- Addresses and other personal data are synthetic and obviously fake (`100 Test Street`, postal code `00000`, `example.com` emails).
+- **Be polite to shared environments.** This is a public site, so we keep workers low and avoid large data volumes. On a real team, tests run against a dedicated test or staging environment.
 
 ---
 

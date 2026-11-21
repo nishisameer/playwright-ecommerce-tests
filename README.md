@@ -1,11 +1,15 @@
 # Playwright E-commerce Tests
 
-A learning project that shows **how a real e-commerce test suite is built and managed**: smoke tests, a regression suite, page objects, fixtures, API tests, tags, and CI pipelines in GitHub Actions.
+A learning project that shows **how a real e-commerce test suite is built and managed** by an SDET: smoke tests, a regression suite, UI tests, API tests and **hybrid tests that use both**, page objects, fixtures, tags and CI pipelines in GitHub Actions.
 
-- **UI tests** run against [SauceDemo](https://www.saucedemo.com), a public practice store (login, products, cart, checkout).
-- **API tests** run against the [AutomationExercise](https://automationexercise.com/api_list) practice API.
+**App under test:** [Practice Software Testing (Toolshop)](https://practicesoftwaretesting.com), a public online tool store built for practicing test automation. Its **website and REST API belong to the same application**, like at a real company:
 
-> Both are public practice sites built for test automation. All test data in this project is synthetic.
+| Layer | URL | What we test |
+|---|---|---|
+| Website (UI) | https://practicesoftwaretesting.com | Login, catalog, search, sorting, cart, checkout |
+| REST API | https://api.practicesoftwaretesting.com ([Swagger docs](https://api.practicesoftwaretesting.com/api/documentation)) | Products, search, auth tokens, protected endpoints, carts |
+
+> The site publishes demo accounts for practice. All other test data in this project is synthetic.
 
 ---
 
@@ -15,41 +19,80 @@ A learning project that shows **how a real e-commerce test suite is built and ma
 npm install
 npx playwright install        # downloads the browsers
 
-npm run test:smoke            # fast smoke suite (Chromium + API)
-npm run test:regression       # full regression suite (Chromium + API)
+npm run test:smoke            # fast smoke suite (UI on Chromium + API)
+npm run test:regression       # full regression suite
 npm run report                # open the last HTML report
 ```
 
-Other useful commands:
-
 | Command | What it does |
 |---|---|
-| `npm run test:headed` | Watch the UI tests run in a visible browser |
+| `npm run test:api` | Only API tests (no browser) |
+| `npm run test:ui` | Only UI tests |
+| `npm run test:hybrid` | Only hybrid (API + UI) tests |
+| `npm run test:headed` | Watch the browser tests run |
 | `npm run test:debug` | Step through tests with the Playwright Inspector |
-| `npm run test:api` | Only the API tests |
-| `npm run list:smoke` | List which tests are in the smoke suite (without running them) |
-| `npm run list:regression` | List which tests are in the regression suite |
+| `npm run list:smoke` | List the smoke tests without running them |
+| `npm run list:regression` | List the regression tests |
 | `npm run test:regression:all-browsers` | Regression on Chromium, Firefox and WebKit |
 | `npx playwright test --grep @cart` | Only tests tagged `@cart` |
-| `npx playwright test --grep-invert @known-bug` | Everything except known-bug tests |
+| `npx playwright test --grep @security` | Only security-related checks |
 
 ---
 
-## Smoke vs. regression: the core idea
+## The three kinds of tests
+
+```
+            ┌──────────────────────────────────────────┐
+            │          Toolshop application            │
+            │                                          │
+ UI tests ─►│  Website  ──calls──►  REST API  ──► DB   │◄─ API tests
+            │                                          │
+            └──────────────────────────────────────────┘
+                      ▲                    ▲
+                      └──── hybrid tests ──┘
+             (get data/setup from the API, check it in the UI)
+```
+
+| Type | Folder | Speed | What it's good for |
+|---|---|---|---|
+| **API** | `tests/api/` | Very fast, very stable | Business rules and data: prices, search, sorting, auth, carts |
+| **UI** | `tests/ui/` | Slower | What the customer actually experiences: pages, forms, the checkout flow |
+| **Hybrid** | `tests/hybrid/` (and the UI cart tests) | In between | Use the API for setup and expected data, then check the UI shows it correctly |
+
+Example of the hybrid idea, from `tests/ui/cart.spec.ts`:
+
+```ts
+// 1. Get reliable test data from the API (id + current price)
+const product = await api.findProductByName('Combination Pliers');
+
+// 2. Use it in the UI
+await productPage.goto(product.id);
+await productPage.setQuantity(3);
+await productPage.addToCart();
+
+// 3. Check the UI calculated the total correctly against the API price
+await cartPage.goto();
+expect(await cartPage.getLinePrice('Combination Pliers')).toBe(roundMoney(product.price * 3));
+```
+
+No prices are hard-coded, so a price change on the site doesn't break the suite.
+
+---
+
+## Smoke vs. regression
 
 | | **Smoke** | **Regression** |
 |---|---|---|
-| Question it answers | "Is the core of the site working at all?" | "Does *everything* still work?" |
-| Size | Small (~6 tests) | Everything (~35+ tests) |
-| Speed | A few minutes | Longer, so it's sharded across machines |
+| Question it answers | "Is the core of the store working at all?" | "Does *everything* still work?" |
+| Size | 10 tests | 38 tests (includes all smoke tests) |
 | When it runs | Every PR and every push to `main` | Nightly + on demand, across browsers |
-| If it fails | PR is blocked | Team triages the next morning, release is held |
+| If it fails | The PR is blocked | Team triages the next morning; release is held |
 
-Every smoke test is **also** tagged `@regression`. Smoke is a subset of regression, not a separate set of tests.
+Every smoke test is **also** tagged `@regression`. Smoke is a subset, not a separate set of tests:
 
 ```ts
-test('customer can complete a purchase', { tag: ['@smoke', '@regression'] }, async (...) => { ... });
-test('sort by price high to low',       { tag: '@regression' },              async (...) => { ... });
+test('logged-in customer can complete a purchase', { tag: ['@smoke', '@regression', '@e2e'] }, ...)
+test('sort by name Z to A',                         { tag: '@regression' },                    ...)
 ```
 
 ---
@@ -59,64 +102,60 @@ test('sort by price high to low',       { tag: '@regression' },              asy
 ```
 playwright-ecommerce-tests/
 ├── .github/workflows/
-│   ├── smoke.yml              # runs smoke on every PR / push
-│   └── regression.yml         # nightly regression, sharded, merged report
+│   ├── smoke.yml               # smoke on every PR / push to main
+│   └── regression.yml          # nightly regression: sharded, merged report
 ├── src/
-│   ├── pages/                 # Page Object Model: one class per page
-│   │   ├── BasePage.ts        #   shared header (cart, menu, logout)
-│   │   ├── LoginPage.ts
-│   │   ├── InventoryPage.ts
-│   │   ├── ProductDetailsPage.ts
-│   │   ├── CartPage.ts
-│   │   └── CheckoutPage.ts
-│   ├── api/ProductsApi.ts     # small API client used by API tests
-│   ├── fixtures/test.ts       # custom fixtures: tests receive page objects ready to use
-│   ├── data/                  # test data in one place (users, products, synthetic customers)
-│   └── utils/price.ts         # helpers (parse "$29.99" -> 29.99)
+│   ├── config/env.ts           # BASE_URL / API_BASE_URL in one place
+│   ├── api/ToolshopApi.ts      # API client: endpoints + token handling
+│   ├── pages/                  # Page Object Model: one class per page
+│   │   ├── BasePage.ts         #   shared nav bar (cart, user menu, sign out)
+│   │   ├── LoginPage.ts  AccountPage.ts  HomePage.ts
+│   │   ├── ProductPage.ts  CartPage.ts  CheckoutPage.ts
+│   ├── fixtures/test.ts        # custom fixtures: api client + page objects
+│   ├── data/                   # demo users, product names, synthetic address
+│   └── utils/price.ts          # helpers ("$14.15" -> 14.15, money rounding)
 ├── tests/
-│   ├── setup/auth.setup.ts    # logs in ONCE, saves the session for all UI tests
-│   ├── ui/
-│   │   ├── login.spec.ts
-│   │   ├── inventory.spec.ts  # includes a "known bug" example with test.fail()
-│   │   ├── cart.spec.ts
-│   │   ├── checkout.spec.ts
-│   │   └── e2e-purchase.spec.ts
-│   └── api/products.api.spec.ts
+│   ├── setup/auth.setup.ts     # logs in ONCE, saves the session for browser tests
+│   ├── api/                    # products, auth, cart: no browser
+│   ├── ui/                     # login, catalog, cart, checkout
+│   └── hybrid/                 # UI must show the same data as the API
 ├── docs/
-│   ├── TEST-STRATEGY.md       # HOW the suite is managed (read this!)
-│   └── EXERCISES.md           # practice tasks to learn by extending the suite
-├── playwright.config.ts       # projects, retries, reporters, trace settings
-└── package.json               # npm scripts for each suite
+│   ├── TEST-STRATEGY.md        # HOW the suite is managed (read this!)
+│   └── EXERCISES.md            # practice tasks
+├── playwright.config.ts        # projects, retries, reporters, traces
+└── package.json                # npm scripts for each suite
 ```
 
 ---
 
-## Key techniques used (and where to find them)
+## Key techniques (and where to find them)
 
 | Technique | Where | Why |
 |---|---|---|
-| Page Object Model | `src/pages/` | Locators live in one place; a UI change is fixed once |
-| Inheritance | `BasePage` → other pages | Shared header code isn't repeated |
-| Custom fixtures | `src/fixtures/test.ts` | Tests ask for `inventoryPage`, `cartPage`... and get fresh instances |
-| Login once with `storageState` | `tests/setup/auth.setup.ts` | UI tests start logged in, which is much faster |
-| Independent tests | every spec | Each test sets up its own state, so tests can run in parallel, on retry, alone |
+| Page Object Model + inheritance | `src/pages/` | Locators in one place; a UI change is fixed once |
+| API client | `src/api/ToolshopApi.ts` | The API version of a page object |
+| Custom fixtures | `src/fixtures/test.ts` | Tests ask for `api`, `homePage`, `cartPage`... and get fresh instances |
+| Log in once (`storageState`) | `tests/setup/auth.setup.ts` | Browser tests start logged in, which is much faster |
+| Token-based API auth | `tests/api/auth.api.spec.ts` | Log in → get `access_token` → send `Authorization: Bearer ...` |
+| Security checks | `@security` tag | Protected endpoints and pages refuse access without login |
+| Independent tests | every spec | Each test creates its own cart and state, so tests can run in parallel, retry or alone |
 | Tags | `{ tag: '@smoke' }` | One codebase, several suites |
-| Data-driven tests | `login.spec.ts`, `checkout.spec.ts` | One test generated per row of data |
-| `test.step` | `e2e-purchase.spec.ts` | One end-to-end test with readable steps in the report |
-| Known bug with `test.fail()` | `inventory.spec.ts` | Bug stays visible without turning the suite red |
-| `test.slow()` | `login.spec.ts` | Longer timeout only where it's genuinely needed |
-| `getByTestId` with `data-test` | `playwright.config.ts` | Stable locators that don't break on styling changes |
-| API client | `src/api/ProductsApi.ts` | Hides API quirks so tests stay readable |
+| Data-driven tests | `login.spec.ts`, `auth.api.spec.ts` | One test generated per row of data |
+| `test.step` | `checkout.spec.ts` | One end-to-end test with readable steps in the report |
+| `test.fixme` | `product-data.hybrid.spec.ts` | Placeholder for planned work, visible in the report |
+| Avoiding flaky navigation | `addProducts()` in `cart.spec.ts` | Wait for the cart counter before leaving the page |
 | Sharding + merged reports | `regression.yml` | Big suites run in parallel across machines |
-| Traces, screenshots, video on failure | `playwright.config.ts` | Evidence for analyzing failures |
+| Traces, screenshots, video | `playwright.config.ts` | Evidence for analyzing failures |
 
 ---
 
 ## How to read a failure
 
 1. Open the report: `npm run report` locally, or download the `smoke-report` / `regression-report` artifact from the GitHub Actions run.
-2. Click the failed test, then check the error, the screenshot and the **trace** (a full timeline of every action, network call and DOM snapshot).
-3. Decide what it is: product bug, test issue, environment problem, or flaky test. See [docs/TEST-STRATEGY.md](docs/TEST-STRATEGY.md#4-when-a-test-fails-triage).
+2. Click the failed test and check the error, screenshot and **trace** (a timeline of every action, network call and page snapshot).
+3. Classify it: product bug, test issue, environment problem or flaky test. See [docs/TEST-STRATEGY.md](docs/TEST-STRATEGY.md#4-when-a-test-fails-triage).
+
+> This suite runs against a **live public site** that can change or be slow. When a test fails, deciding *why* is part of the learning.
 
 ---
 

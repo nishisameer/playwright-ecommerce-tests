@@ -1,22 +1,15 @@
 /**
- * Product catalog used by the tests. Keeping expected data in one place means
- * a price change is fixed here once, not in every test.
+ * Product names used by the tests. We keep only NAMES here, not prices:
+ * prices are read from the API at test time (see tests/hybrid), so a price
+ * change on the site doesn't break the suite.
  */
-export interface Product {
-  name: string;
-  slug: string; // used in data-test ids, e.g. add-to-cart-sauce-labs-backpack
-  price: number;
-}
+export const productNames = {
+  combinationPliers: 'Combination Pliers',
+  boltCutters: 'Bolt Cutters',
+} as const;
 
-export const products = {
-  backpack: { name: 'Sauce Labs Backpack', slug: 'sauce-labs-backpack', price: 29.99 },
-  bikeLight: { name: 'Sauce Labs Bike Light', slug: 'sauce-labs-bike-light', price: 9.99 },
-  boltTShirt: { name: 'Sauce Labs Bolt T-Shirt', slug: 'sauce-labs-bolt-t-shirt', price: 15.99 },
-  fleeceJacket: { name: 'Sauce Labs Fleece Jacket', slug: 'sauce-labs-fleece-jacket', price: 49.99 },
-  onesie: { name: 'Sauce Labs Onesie', slug: 'sauce-labs-onesie', price: 7.99 },
-} satisfies Record<string, Product>;
+/** A search term that matches several products. */
+export const SEARCH_TERM = 'pliers';
 
-export const TOTAL_PRODUCT_COUNT = 6;
-
-/** SauceDemo charges 8% tax on the item total. */
-export const TAX_RATE = 0.08;
+/** A search term that should match nothing. */
+export const NO_RESULTS_TERM = 'zzz-no-such-product';

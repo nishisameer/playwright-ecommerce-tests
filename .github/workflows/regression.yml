@@ -26,8 +26,8 @@ jobs:
         shardIndex: [1, 2, 3]
         shardTotal: [3]
     env:
-      BASE_URL: ${{ vars.BASE_URL || 'https://www.saucedemo.com' }}
-      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://automationexercise.com' }}
+      BASE_URL: ${{ vars.BASE_URL || 'https://practicesoftwaretesting.com' }}
+      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.practicesoftwaretesting.com' }}
       BROWSER: ${{ inputs.browser || 'chromium' }}
 
     steps:

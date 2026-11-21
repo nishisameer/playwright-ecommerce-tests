@@ -1,47 +1,47 @@
 import { test as base, expect } from '@playwright/test';
+import { env } from '../config/env';
+import { ToolshopApi } from '../api/ToolshopApi';
 import { LoginPage } from '../pages/LoginPage';
-import { InventoryPage } from '../pages/InventoryPage';
-import { ProductDetailsPage } from '../pages/ProductDetailsPage';
+import { AccountPage } from '../pages/AccountPage';
+import { HomePage } from '../pages/HomePage';
+import { ProductPage } from '../pages/ProductPage';
 import { CartPage } from '../pages/CartPage';
 import { CheckoutPage } from '../pages/CheckoutPage';
-import { ProductsApi } from '../api/ProductsApi';
 
 /**
- * Custom fixtures: every test can ask for the page objects it needs
- * instead of creating them with `new` in each test.
+ * Custom fixtures: tests ask for what they need instead of building it.
  *
- *   test('...', async ({ inventoryPage, cartPage }) => { ... })
+ *   test('...', async ({ homePage, api }) => { ... })
  *
- * Each test gets its own fresh instances, so tests stay independent.
+ * Each test gets fresh instances, so tests stay independent.
  */
 type Fixtures = {
+  api: ToolshopApi;
   loginPage: LoginPage;
-  inventoryPage: InventoryPage;
-  productDetailsPage: ProductDetailsPage;
+  accountPage: AccountPage;
+  homePage: HomePage;
+  productPage: ProductPage;
   cartPage: CartPage;
   checkoutPage: CheckoutPage;
-  productsApi: ProductsApi;
 };
 
 export const test = base.extend<Fixtures>({
-  loginPage: async ({ page }, use) => {
-    await use(new LoginPage(page));
+  /**
+   * An API client pointed at the API base URL. Available in UI tests too,
+   * which is what makes "hybrid" tests possible (API setup + UI checks).
+   */
+  api: async ({ playwright }, use) => {
+    const context = await playwright.request.newContext({ baseURL: env.apiBaseUrl });
+    await use(new ToolshopApi(context));
+    await context.dispose(); // cleanup after the test
   },
-  inventoryPage: async ({ page }, use) => {
-    await use(new InventoryPage(page));
-  },
-  productDetailsPage: async ({ page }, use) => {
-    await use(new ProductDetailsPage(page));
-  },
-  cartPage: async ({ page }, use) => {
-    await use(new CartPage(page));
-  },
-  checkoutPage: async ({ page }, use) => {
-    await use(new CheckoutPage(page));
-  },
-  productsApi: async ({ request }, use) => {
-    await use(new ProductsApi(request));
-  },
+
+  loginPage: async ({ page }, use) => use(new LoginPage(page)),
+  accountPage: async ({ page }, use) => use(new AccountPage(page)),
+  homePage: async ({ page }, use) => use(new HomePage(page)),
+  productPage: async ({ page }, use) => use(new ProductPage(page)),
+  cartPage: async ({ page }, use) => use(new CartPage(page)),
+  checkoutPage: async ({ page }, use) => use(new CheckoutPage(page)),
 });
 
 export { expect };
