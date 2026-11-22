@@ -3,6 +3,14 @@
 # Goal: a fast (~few minutes) "is the core of the site working?" check.
 # If it fails, the PR should not be merged (make this a required check
 # under Settings > Branches > Branch protection rules).
+#
+# WHY ONLY API TESTS IN CI:
+# The Toolshop website is protected by Cloudflare bot detection. Automated
+# browsers running on GitHub's servers get a "verifying you are not a bot" page
+# instead of the store, so UI tests can't run here. The API is not blocked.
+# UI tests run locally (npm run test:smoke). Use "Run workflow" with
+# include_ui = true to try the UI tests in CI anyway.
+# On a real team, CI would test a dedicated test environment instead.
 name: Smoke Tests
 
 on:
@@ -11,6 +19,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      include_ui:
+        description: 'Also run UI tests (currently blocked by Cloudflare in CI)'
+        type: boolean
+        default: false
 
 concurrency:
   group: smoke-${{ github.ref }}
@@ -41,10 +54,14 @@ jobs:
         run: npm run typecheck
 
       - name: Install Chromium
+        if: ${{ inputs.include_ui }}
         run: npx playwright install --with-deps chromium
 
       - name: Run smoke tests
-        run: npx playwright test --grep @smoke --project=chromium --project=api --reporter=html,github,list
+        run: |
+          PROJECTS="--project=api"
+          if [ "${{ inputs.include_ui }}" = "true" ]; then PROJECTS="--project=chromium --project=api"; fi
+          npx playwright test --grep @smoke $PROJECTS --reporter=html,github,list
 
       - name: Upload HTML report
         if: ${{ !cancelled() }}

@@ -3,6 +3,10 @@
 # Goal: check EVERYTHING still works, across browsers.
 # Tests are split into shards that run in parallel on separate machines,
 # then the shard reports are merged into one HTML report.
+#
+# By default only API tests run in CI: the Toolshop website blocks automated
+# browsers from GitHub's servers with Cloudflare bot detection (see smoke.yml).
+# Run UI regression locally: npm run test:regression
 name: Regression Tests
 
 on:
@@ -10,8 +14,12 @@ on:
     - cron: '0 8 * * *' # 08:00 UTC every day (1 AM Mountain)
   workflow_dispatch:
     inputs:
+      include_ui:
+        description: 'Also run UI and hybrid tests (currently blocked by Cloudflare in CI)'
+        type: boolean
+        default: false
       browser:
-        description: 'Browser project to run'
+        description: 'Browser for UI tests (only used when include_ui is on)'
         type: choice
         options: [chromium, firefox, webkit]
         default: chromium
@@ -44,13 +52,15 @@ jobs:
         run: npm ci
 
       - name: Install browser
+        if: ${{ inputs.include_ui }}
         run: npx playwright install --with-deps ${{ env.BROWSER }}
 
       - name: Run regression shard ${{ matrix.shardIndex }} of ${{ matrix.shardTotal }}
-        run: >
-          npx playwright test --grep @regression
-          --project=${{ env.BROWSER }} --project=api
-          --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        run: |
+          PROJECTS="--project=api"
+          if [ "${{ inputs.include_ui }}" = "true" ]; then PROJECTS="--project=${{ env.BROWSER }} --project=api"; fi
+          npx playwright test --grep @regression $PROJECTS \
+            --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - name: Upload blob report
         if: ${{ !cancelled() }}
