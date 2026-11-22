@@ -26,6 +26,7 @@ export class HomePage extends BasePage {
 
   async goto(): Promise<void> {
     await this.page.goto('/');
+    await this.productNames.first().waitFor({ state: 'visible' });
   }
 
   async search(term: string): Promise<void> {

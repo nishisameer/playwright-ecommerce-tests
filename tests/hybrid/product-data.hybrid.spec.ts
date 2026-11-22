@@ -22,18 +22,13 @@ test.describe('UI shows the same data as the API', { tag: '@hybrid' }, () => {
     expect(await productPage.getPrice()).toBe(product.price);
   });
 
-  test('UI search results all exist in the API search results', { tag: '@regression' }, async ({ api, homePage }) => {
+  test('UI search results match the API search results', { tag: '@regression' }, async ({ api, homePage }) => {
     const apiResults = (await (await api.searchProducts(SEARCH_TERM)).json()) as Paginated<Product>;
     const apiNames = apiResults.data.map((p) => p.name);
 
     await homePage.goto();
     await homePage.search(SEARCH_TERM);
-    await expect(homePage.productNames.first()).toBeVisible();
-
-    const uiNames = await homePage.getNames();
-    for (const name of uiNames) {
-      expect(apiNames).toContain(name);
-    }
+    await expect(homePage.productNames).toHaveText(apiNames);
   });
 
   test('an order placed in the UI appears in the API invoices', { tag: ['@regression', '@checkout'] }, async () => {
