@@ -1,7 +1,7 @@
 import { test as setup, expect } from '@playwright/test';
 import { LoginPage } from '../../src/pages/LoginPage';
 import { users } from '../../src/data/users';
-import { STORAGE_STATE } from '../../playwright.config';
+import { STORAGE_STATE } from '../../src/config/storage-state';
 
 /**
  * Runs once before the UI and hybrid tests (the "setup" project in playwright.config.ts).

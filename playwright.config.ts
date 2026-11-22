@@ -1,11 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { env } from './src/config/env';
-
-/**
- * Where the logged-in browser state is saved by tests/setup/auth.setup.ts.
- * UI tests reuse it, so they don't log in through the UI every time.
- */
-export const STORAGE_STATE = 'playwright/.auth/customer.json';
+import { STORAGE_STATE } from './src/config/storage-state';
 
 const isCI = !!process.env.CI;
 
