@@ -14,6 +14,7 @@ export class CheckoutPage extends BasePage {
   readonly proceedToAddress: Locator;
   readonly proceedToPayment: Locator;
   readonly street: Locator;
+  readonly houseNumber: Locator;
   readonly city: Locator;
   readonly state: Locator;
   readonly country: Locator;
@@ -28,6 +29,7 @@ export class CheckoutPage extends BasePage {
     this.proceedToAddress = page.getByTestId('proceed-2');
     this.proceedToPayment = page.getByTestId('proceed-3');
     this.street = page.getByTestId('street');
+    this.houseNumber = page.getByLabel('House number');
     this.city = page.getByTestId('city');
     this.state = page.getByTestId('state');
     this.country = page.getByTestId('country');
@@ -38,29 +40,12 @@ export class CheckoutPage extends BasePage {
     this.orderConfirmation = page.locator('#order-confirmation');
   }
 
-  /**
-   * For a logged-in customer the address is usually pre-filled from their profile.
-   * We only fill fields that are empty, so the test works either way.
-   */
+  /** Use a supported country/postcode pair so the site can resolve the full address. */
   async completeBillingAddress(): Promise<void> {
-    const fields: [Locator, string][] = [
-      [this.street, testAddress.street],
-      [this.city, testAddress.city],
-      [this.state, testAddress.state],
-      [this.country, testAddress.country],
-      [this.postalCode, testAddress.postalCode],
-    ];
-    await this.street.waitFor();
-    for (const [field, value] of fields) {
-      if ((await field.count()) === 0 || (await field.inputValue()) !== '') continue;
-
-      const tag = await field.evaluate((el) => el.tagName);
-      if (tag === 'SELECT') {
-        await field.selectOption({ index: 1 }); // a dropdown: pick the first real option
-      } else {
-        await field.fill(value);
-      }
-    }
+    await this.postalCode.fill('');
+    await this.country.selectOption({ label: testAddress.country });
+    await this.postalCode.fill(testAddress.postalCode);
+    await this.houseNumber.fill(testAddress.houseNumber);
     await this.proceedToPayment.click();
   }
 

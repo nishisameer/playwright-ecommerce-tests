@@ -1,6 +1,7 @@
 import { test, expect } from '../../src/fixtures/test';
 import { type Paginated, type Product } from '../../src/api/ToolshopApi';
 import { NO_RESULTS_TERM, SEARCH_TERM } from '../../src/data/products';
+import { sortCases } from '../../src/data/sort-scenario';
 
 /**
  * API tests run without a browser, so they're fast and very stable:
@@ -81,4 +82,21 @@ test.describe('Products API', { tag: '@api' }, () => {
     expect(((await brands.json()) as unknown[]).length).toBeGreaterThanOrEqual(2);
     expect(((await categories.json()) as unknown[]).length).toBeGreaterThan(0);
   });
+
+  for (const sort of sortCases) {
+    test(`API sort: ${sort.label}`, { tag: '@regression' }, async ({ api }) => {
+      const response = await api.getProducts({ sort: sort.option });
+      expect(response.status()).toBe(200);
+
+      const body = (await response.json()) as Paginated<Product>;
+      const values = body.data.map((product) => product[sort.field]);
+      const expected = [...values].sort((a, b) => {
+        const order =
+          sort.field === 'name' ? String(a).localeCompare(String(b)) : Number(a) - Number(b);
+        return sort.direction === 'asc' ? order : -order;
+      });
+
+      expect(values).toEqual(expected);
+    });
+  }
 });

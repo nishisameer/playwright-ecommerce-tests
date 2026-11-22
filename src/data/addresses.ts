@@ -1,11 +1,8 @@
 /**
- * Synthetic billing address: obviously fake on purpose.
- * Never use real customer addresses in tests.
+ * Test checkout values accepted by the practice site's postcode lookup.
  */
 export const testAddress = {
-  street: '100 Test Street',
-  city: 'Testville',
-  state: 'Test State',
-  country: 'Testland',
-  postalCode: '00000',
+  houseNumber: '42',
+  country: 'Austria',
+  postalCode: '1010',
 };
