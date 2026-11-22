@@ -12,6 +12,18 @@ import { STORAGE_STATE } from '../../playwright.config';
 setup('log in as customer and save session', async ({ page }) => {
   const loginPage = new LoginPage(page);
   await loginPage.goto();
+
+  // If the login form never shows up, fail with a message that says WHAT page
+  // we landed on. A clear failure message saves a lot of triage time.
+  try {
+    await expect(loginPage.emailInput).toBeVisible({ timeout: 20_000 });
+  } catch {
+    const bodyText = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 400);
+    throw new Error(
+      `Login form not found.\n  URL: ${page.url()}\n  Title: ${await page.title()}\n  Page text: ${bodyText}`,
+    );
+  }
+
   await loginPage.login(users.customer.email, users.customer.password);
 
   await expect(page).toHaveURL(/\/account/);
