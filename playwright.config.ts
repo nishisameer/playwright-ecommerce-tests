@@ -38,6 +38,10 @@ export default defineConfig({
   use: {
     baseURL: env.baseUrl,
 
+    // Toolshop marks elements with data-test="...", so getByTestId() must look
+    // for that attribute (Playwright's default is data-testid).
+    testIdAttribute: 'data-test',
+
     // Evidence for analyzing failures.
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
